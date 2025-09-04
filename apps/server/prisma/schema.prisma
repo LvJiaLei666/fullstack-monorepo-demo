@@ -11,7 +11,7 @@ generator client {
 // 这里使用prisma-types-generator生成shared包的类型 以供前端使用
 generator types {
   provider    = "prisma-types-generator"
-  output      = "../../packages/shared/src/generated/prisma"
+  output      = "../../../packages/shared/src/generated/prisma"
   modelSuffix = "Model"
   prettier    = "true"
 }

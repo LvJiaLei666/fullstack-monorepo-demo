@@ -2,6 +2,7 @@
 import { RouterLink, RouterView } from 'vue-router'
 import HelloWorld from './components/HelloWorld.vue'
 import type { UserModel } from '@fullstack-monorepo-demo/shared';
+import { API_PREFIX } from '@fullstack-monorepo-demo/shared';
 
 const a:UserModel = {
   id: '1',
@@ -10,6 +11,7 @@ const a:UserModel = {
   createdAt: '2021-01-01',
   updatedAt: '2021-01-01',
 }
+
 </script>
 
 <template>
@@ -25,6 +27,7 @@ const a:UserModel = {
       </nav>
     </div>
     {{ a }}
+    {{ API_PREFIX }}
   </header>
 
   <RouterView />

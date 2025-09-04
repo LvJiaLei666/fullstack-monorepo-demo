@@ -2,18 +2,25 @@
   "name": "@fullstack-monorepo-demo/shared",
   "version": "1.0.0",
   "description": "Shared types and utilities for fullstack monorepo",
-  "main": "./src/index.ts",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
   "scripts": {
-    "build": "tsc --emitDeclarationOnly",
-    "dev": "tsc --watch --emitDeclarationOnly",
+    "build": "tsup",
+    "dev": "tsup --watch",
     "clean": "rm -rf dist",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": ["shared", "types", "prisma"],
+  "keywords": [
+    "shared",
+    "types",
+    "prisma"
+  ],
   "author": "",
   "license": "ISC",
   "packageManager": "pnpm@10.14.0",
   "devDependencies": {
+    "tsup": "^8.5.0",
     "typescript": "^5.1.3"
   },
   "peerDependencies": {

@@ -1,6 +1,6 @@
 # 全栈 Monorepo 演示项目
 
-这是一个使用现代技术栈构建的全栈monorepo项目，展示了如何在前后端之间共享类型定义。
+这是一个使用现代技术栈构建的全栈monorepo项目，展示了如何在前后端之间共享类型定义和常量。
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![NestJS](https://img.shields.io/badge/NestJS-E0234E?style=flat-square&logo=nestjs&logoColor=white)](https://nestjs.com/)
@@ -28,11 +28,14 @@ pnpm install
 cp apps/server/.env.example apps/server/.env
 # 编辑 .env 文件，配置数据库连接
 
-# 4. 初始化数据库
+# 4. 构建共享包
+pnpm build:shared
+
+# 5. 初始化数据库
 pnpm db:generate
 pnpm db:migrate
 
-# 5. 启动开发服务器
+# 6. 启动开发服务器
 pnpm dev
 ```
 
@@ -59,11 +62,13 @@ fullstack-monorepo-demo/
 │       │   └── main.ts          # 应用入口
 │       └── package.json
 ├── packages/
-│   └── shared/                  # 共享包 - 类型定义和工具
+│   └── shared/                  # 共享包 - 类型定义、常量和工具
 │       ├── src/
 │       │   ├── types/           # 通用类型定义
+│       │   ├── constants/       # 共享常量
 │       │   ├── generated/       # Prisma生成的类型
 │       │   └── index.ts         # 导出入口
+│       ├── tsup.config.ts       # 构建配置
 │       └── package.json
 ├── package.json                 # 根配置
 ├── pnpm-workspace.yaml         # pnpm工作空间配置
@@ -75,6 +80,7 @@ fullstack-monorepo-demo/
 ### 后端 (apps/server/)
 - **NestJS** - Node.js框架，提供企业级架构
 - **Prisma** - 现代化数据库ORM，类型安全
+- **prisma-types-generator** - 生成优化的类型定义到共享包
 - **TypeScript** - 静态类型检查
 - **PostgreSQL** - 关系型数据库
 - **Jest** - 单元测试框架
@@ -90,8 +96,10 @@ fullstack-monorepo-demo/
 
 ### 共享包 (packages/shared/)
 - **TypeScript** - 类型定义
-- **Prisma Client** - 数据库类型自动生成
+- **tsup** - 快速的TypeScript构建工具
+- **prisma-types-generator** - 优化的数据库类型生成
 - **通用类型** - API响应、分页、错误处理等
+- **共享常量** - API前缀、配置常量等
 
 ## 📦 安装和设置
 
@@ -106,7 +114,13 @@ fullstack-monorepo-demo/
 pnpm install
 ```
 
-### 3. 数据库设置
+### 3. 构建共享包
+```bash
+# 首先构建shared包，使其他包可以导入
+pnpm build:shared
+```
+
+### 4. 数据库设置
 ```bash
 # 复制环境变量模板
 cp apps/server/.env.example apps/server/.env
@@ -116,7 +130,7 @@ cp apps/server/.env.example apps/server/.env
 # JWT_SECRET="your-secret-key"
 # PORT=3000
 
-# 生成Prisma客户端到shared包
+# 生成Prisma类型到shared包
 pnpm db:generate
 
 # 运行数据库迁移
@@ -124,12 +138,6 @@ pnpm db:migrate
 
 # (可选) 填充示例数据
 pnpm --filter @fullstack-monorepo-demo/server db:seed
-```
-
-### 4. 构建共享包
-```bash
-# 构建shared包，使其他包可以导入
-pnpm --filter @fullstack-monorepo-demo/shared build
 ```
 
 ## 🏃‍♂️ 运行项目
@@ -170,99 +178,107 @@ pnpm --filter @fullstack-monorepo-demo/server db:reset
 pnpm --filter @fullstack-monorepo-demo/server db:status
 ```
 
-## 🔗 共享类型的使用
+## 🔗 共享类型和常量的使用
 
-### 在后端使用
+### Prisma类型生成配置
+```prisma
+// apps/server/prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+// 使用prisma-types-generator生成优化的类型到shared包
+generator types {
+  provider    = "prisma-types-generator"
+  output      = "../../../packages/shared/src/generated/prisma"
+  modelSuffix = "Model"
+  prettier    = "true"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+```
+
+### 在后端使用共享类型和常量
 ```typescript
-// apps/server/src/users/users.service.ts
+// apps/server/src/app.service.ts
 import { Injectable } from '@nestjs/common';
-import type { User, Prisma, ApiResponse } from '@fullstack-monorepo-demo/shared';
+import { API_PREFIX } from '@fullstack-monorepo-demo/shared';
 
 @Injectable()
-export class UsersService {
-  async createUser(data: Prisma.UserCreateInput): Promise<ApiResponse<User>> {
-    const user = await this.prisma.user.create({ data });
-    return {
-      success: true,
-      data: user,
-      message: '用户创建成功'
-    };
+export class AppService {
+  getHello(): string {
+    return 'Hello World!' + API_PREFIX;
   }
 }
 ```
 
-### 在前端使用
-```typescript
-// apps/web/src/stores/user.ts
-import { defineStore } from 'pinia';
-import type { User, ApiResponse } from '@fullstack-monorepo-demo/shared';
-
-export const useUserStore = defineStore('user', () => {
-  const users = ref<User[]>([]);
-  const loading = ref(false);
-
-  const fetchUsers = async (): Promise<void> => {
-    loading.value = true;
-    try {
-      const response = await fetch('/api/users');
-      const result: ApiResponse<User[]> = await response.json();
-      if (result.success) {
-        users.value = result.data;
-      }
-    } finally {
-      loading.value = false;
-    }
-  };
-
-  return { users, loading, fetchUsers };
-});
-```
-
-### 在Vue组件中使用
+### 在前端使用共享类型和常量
 ```vue
-<!-- apps/web/src/components/UserList.vue -->
+<!-- apps/web/src/App.vue -->
 <script setup lang="ts">
-import type { User } from '@fullstack-monorepo-demo/shared';
-import { useUserStore } from '@/stores/user';
+import { RouterLink, RouterView } from 'vue-router'
+import type { UserModel } from '@fullstack-monorepo-demo/shared';
+import { API_PREFIX } from '@fullstack-monorepo-demo/shared';
 
-const userStore = useUserStore();
-
-// TypeScript会提供完整的类型检查和智能提示
-const handleUserClick = (user: User) => {
-  console.log(`点击用户: ${user.email}`);
-};
-
-onMounted(() => {
-  userStore.fetchUsers();
-});
+// 使用共享的类型定义
+const user: UserModel = {
+  id: '1',
+  email: 'test@test.com',
+  password: 'test',
+  createdAt: '2021-01-01',
+  updatedAt: '2021-01-01',
+}
 </script>
 
 <template>
-  <div class="user-list">
-    <div v-if="userStore.loading">加载中...</div>
-    <div
-      v-for="user in userStore.users"
-      :key="user.id"
-      @click="handleUserClick(user)"
-      class="user-item"
-    >
-      {{ user.email }}
-    </div>
+  <div>
+    <!-- 使用共享常量 -->
+    <p>API前缀: {{ API_PREFIX }}</p>
+    <p>用户信息: {{ user }}</p>
   </div>
 </template>
+```
+
+### 共享包构建配置
+```typescript
+// packages/shared/tsup.config.ts
+import { defineConfig } from 'tsup'
+
+export default defineConfig({
+  entry: ["src/*.ts"],
+  format: ["cjs", "esm"],        // 支持CommonJS和ES模块
+  dts: true,                     // 生成类型声明文件
+  splitting: false,              // 关闭代码分割
+  clean: true,                   // 构建前清理输出目录
+  outDir: "dist",
+  sourcemap: "inline",           // 内联source map
+  cjsInterop: true,             // CJS互操作性
+})
 ```
 
 ## 🎯 核心特性
 
 ### ✅ 类型安全
 - 前后端共享相同的类型定义
-- Prisma自动生成数据库类型
+- 使用 `prisma-types-generator` 生成优化的数据库类型
 - TypeScript提供编译时类型检查
 - 接口变更时的编译时错误检测
+
+### ✅ 常量共享
+- API前缀、配置常量等在前后端保持一致
+- 避免硬编码，提高可维护性
+- 集中管理应用配置
 
 ### ✅ 开发体验
 - 自动类型推导和智能提示
 - 热重载开发服务器
+- 快速的 `tsup` 构建工具
 - 统一的代码风格和ESLint规则
 - 集成的测试环境
 
@@ -274,6 +290,7 @@ onMounted(() => {
 
 ### ✅ 性能优化
 - Vite的快速构建
+- tsup的高效TypeScript编译
 - Tree-shaking优化
 - 代码分割
 - 生产环境优化
@@ -283,10 +300,13 @@ onMounted(() => {
 ### 根目录
 - `pnpm dev` - 启动所有开发服务器
 - `pnpm build` - 构建所有包
+- `pnpm build:shared` - 单独构建共享包
+- `pnpm build:server` - 单独构建后端
+- `pnpm build:web` - 单独构建前端
 - `pnpm lint` - 运行所有linter
 - `pnpm test` - 运行所有测试
 - `pnpm clean` - 清理所有构建文件
-- `pnpm db:generate` - 生成Prisma客户端
+- `pnpm db:generate` - 生成Prisma客户端和类型
 - `pnpm db:migrate` - 运行数据库迁移
 - `pnpm db:studio` - 打开Prisma Studio
 
@@ -300,6 +320,7 @@ pnpm --filter @fullstack-monorepo-demo/shared <command>
 # 示例
 pnpm --filter @fullstack-monorepo-demo/server test
 pnpm --filter @fullstack-monorepo-demo/web build
+pnpm --filter @fullstack-monorepo-demo/shared dev  # 监听模式构建
 ```
 
 ## 🔧 配置说明
@@ -311,25 +332,31 @@ packages:
   - apps/*
 ```
 
-### Prisma配置 (apps/server/prisma/schema.prisma)
-```prisma
-generator client {
-  provider = "prisma-client-js"
-  output   = "../../../packages/shared/src/generated/prisma"
-}
-
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+### 共享包配置 (packages/shared/package.json)
+```json
+{
+  "name": "@fullstack-monorepo-demo/shared",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch"
+  },
+  "devDependencies": {
+    "tsup": "^8.5.0"
+  },
+  "peerDependencies": {
+    "@prisma/client": "*"
+  }
 }
 ```
-
-这个配置将Prisma客户端生成到shared包中，使前后端都能访问相同的类型。
 
 ### TypeScript配置
 - 根目录的 `tsconfig.json` 配置项目引用
 - 各个包都有自己的 `tsconfig.json`
 - 共享的编译器选项确保一致性
+- tsup提供快速的TypeScript编译
 
 ## 🧪 测试
 
@@ -366,19 +393,28 @@ pnpm install
 
 #### 2. 类型错误
 ```bash
-# 重新生成Prisma客户端
+# 重新生成Prisma类型
 pnpm db:generate
 
 # 重新构建shared包
-pnpm --filter @fullstack-monorepo-demo/shared build
+pnpm build:shared
 ```
 
-#### 3. 数据库连接错误
+#### 3. 共享包导入错误
+```bash
+# 确保先构建shared包
+pnpm build:shared
+
+# 检查shared包的构建输出
+ls -la packages/shared/dist/
+```
+
+#### 4. 数据库连接错误
 - 检查 `apps/server/.env` 中的 `DATABASE_URL`
 - 确保PostgreSQL服务正在运行
 - 验证数据库用户权限
 
-#### 4. 端口冲突
+#### 5. 端口冲突
 - 前端默认端口: 5173
 - 后端默认端口: 3000
 - 可以在各自的配置文件中修改
@@ -388,11 +424,14 @@ pnpm --filter @fullstack-monorepo-demo/shared build
 2. 利用 VS Code 的调试功能
 3. 查看网络请求和响应
 4. 使用 Prisma Studio 查看数据库状态
+5. 检查共享包的构建输出和类型导出
 
 ## 📚 学习资源
 
 ### 官方文档
 - [Prisma文档](https://www.prisma.io/docs/) - 数据库工具链
+- [prisma-types-generator](https://github.com/YassinEldeeb/prisma-types-generator) - 类型生成器
+- [tsup文档](https://tsup.egoist.dev/) - TypeScript构建工具
 - [NestJS文档](https://docs.nestjs.com/) - Node.js框架
 - [Vue 3文档](https://vuejs.org/) - 前端框架
 - [Pinia文档](https://pinia.vuejs.org/) - 状态管理
@@ -407,9 +446,11 @@ pnpm --filter @fullstack-monorepo-demo/shared build
 
 ### 已完成
 - ✅ 基础项目结构
-- ✅ 类型共享机制
+- ✅ 类型共享机制（使用prisma-types-generator）
+- ✅ 常量共享机制
+- ✅ 快速构建配置（tsup）
 - ✅ 开发环境配置
-- ✅ 基础CRUD操作
+- ✅ 基础CRUD操作示例
 
 ### 计划中
 - 🔄 用户认证和授权
@@ -442,6 +483,7 @@ pnpm --filter @fullstack-monorepo-demo/shared build
 - 添加适当的测试
 - 更新相关文档
 - 确保所有测试通过
+- 构建共享包后再提交
 
 ### 报告问题
 如果你发现了bug或有功能建议，请在GitHub Issues中报告。
@@ -454,6 +496,8 @@ pnpm --filter @fullstack-monorepo-demo/shared build
 
 感谢所有开源项目的贡献者，特别是：
 - Prisma团队提供的优秀ORM
+- prisma-types-generator的作者提供的类型生成工具
+- tsup团队提供的快速构建工具
 - NestJS社区的企业级框架
 - Vue.js团队的响应式框架
 - pnpm团队的快速包管理器
