@@ -1,0 +1,22 @@
+{
+  "name": "fullstack-monorepo-demo",
+  "version": "1.0.0",
+  "description": "Full-stack monorepo with NestJS backend, Vue frontend, and shared types",
+  "scripts": {
+    "dev": "pnpm run --parallel dev",
+    "build": "pnpm run --recursive build",
+    "lint": "pnpm run --recursive lint",
+    "test": "pnpm run --recursive test",
+    "clean": "pnpm run --recursive clean",
+    "db:generate": "pnpm --filter @fullstack-monorepo-demo/server db:generate",
+    "db:migrate": "pnpm --filter @fullstack-monorepo-demo/server db:migrate",
+    "db:studio": "pnpm --filter @fullstack-monorepo-demo/server db:studio"
+  },
+  "keywords": ["monorepo", "nestjs", "vue", "prisma", "typescript"],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.14.0",
+  "devDependencies": {
+    "typescript": "^5.1.3"
+  }
+}
